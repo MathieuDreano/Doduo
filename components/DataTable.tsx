@@ -23,17 +23,19 @@ const renderCellContent = (content: any): React.ReactNode => {
       return <div className="px-4 py-3"><span className="text-gray-500 italic">[ ]</span></div>;
     }
     return (
-      <table className="w-full">
-        <tbody className="divide-y divide-gray-700">
-          {content.map((item, index) => (
-            <tr key={index}>
-              <td className="p-0 align-top">
-                {renderCellContent(item)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="border border-gray-600 rounded-md bg-gray-900/30 m-1">
+        <table className="w-full">
+          <tbody className="divide-y divide-gray-700/50">
+            {content.map((item, index) => (
+              <tr key={index}>
+                <td className="p-0 align-top">
+                  {renderCellContent(item)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 
@@ -79,8 +81,29 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onSplitColumn, onReg
     );
   }
 
-  const allHeaders = Object.keys(data[0] || {});
+  const allHeaders = Object.keys(data[0] || {}).sort();
   const visibleHeaders = allHeaders.filter(header => visibleColumns.has(header));
+
+  const headerGroups: (string | { parent: string; children: string[] })[] = [];
+  if (visibleHeaders.length > 0) {
+    let i = 0;
+    while (i < visibleHeaders.length) {
+      const currentHeader = visibleHeaders[i];
+      const dotIndex = currentHeader.indexOf('.');
+      if (dotIndex > 0) {
+        const parent = currentHeader.substring(0, dotIndex);
+        const group: { parent: string; children: string[] } = { parent, children: [] };
+        while (i < visibleHeaders.length && visibleHeaders[i].startsWith(parent + '.')) {
+          group.children.push(visibleHeaders[i]);
+          i++;
+        }
+        headerGroups.push(group);
+      } else {
+        headerGroups.push(currentHeader);
+        i++;
+      }
+    }
+  }
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 flex-grow flex flex-col overflow-auto shadow-lg">
@@ -108,64 +131,104 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onSplitColumn, onReg
         <table className="min-w-full divide-y divide-gray-700">
           <thead className="bg-gray-700/50 sticky top-0 z-10">
             <tr>
-              {visibleHeaders.map((header) => {
-                const isSplittable = !header.includes('.') && data.some(row => {
-                  const value = row[header];
-                  if (value === null || typeof value !== 'object') {
+              {headerGroups.map((group) => {
+                if (typeof group === 'string') {
+                  const header = group;
+                  const isSplittable = !header.includes('.') && data.some(row => {
+                    const value = row[header];
+                    if (value === null || typeof value !== 'object') return false;
+                    if (!Array.isArray(value) && Object.keys(value).length > 0) return true;
+                    if (Array.isArray(value) && value.length > 0) return true;
                     return false;
-                  }
-                  if (!Array.isArray(value) && Object.keys(value).length > 0) {
-                    return true; // Is a non-empty object
-                  }
-                  if (Array.isArray(value) && value.length > 0) {
-                    return true; // Is a non-empty array
-                  }
-                  return false;
-                });
+                  });
 
-                const isRegroupable = header.includes('.');
-                const parentKey = isRegroupable ? header.split('.')[0] : '';
-
-                return (
-                  <th
-                    key={header}
-                    scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider group align-bottom"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate" title={header}>{header}</span>
-                      <div className="flex items-center gap-1">
-                        {isSplittable && (
+                  return (
+                    <th
+                      key={header}
+                      rowSpan={2}
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider group align-bottom border-b border-gray-700"
+                    >
+                      <div className="flex items-end justify-between gap-2 h-full">
+                        <span className="truncate" title={header}>{header}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {isSplittable && (
+                            <button
+                              onClick={() => onSplitColumn(header)}
+                              className="px-2 py-0.5 text-xs font-semibold bg-teal-600 text-white rounded-md hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-teal-500 transition-colors duration-200 whitespace-nowrap"
+                              title={`Split "${header}" into multiple columns`}
+                            >
+                              Split
+                            </button>
+                          )}
                           <button
-                            onClick={() => onSplitColumn(header)}
-                            className="px-2 py-0.5 text-xs font-semibold bg-teal-600 text-white rounded-md hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-teal-500 transition-colors duration-200 whitespace-nowrap"
-                            title={`Split "${header}" into multiple columns`}
+                            onClick={() => onToggleColumn(header)}
+                            className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 focus:outline-none"
+                            title={`Hide column "${header}"`}
                           >
-                            Split
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                           </button>
-                        )}
-                        {isRegroupable && (
+                        </div>
+                      </div>
+                    </th>
+                  );
+                } else {
+                  const { parent, children } = group;
+                  return (
+                    <th
+                      key={parent}
+                      colSpan={children.length}
+                      className="px-1 pt-1 pb-0 text-center text-xs font-medium text-gray-300 uppercase tracking-wider border-b-2 border-gray-700 align-top"
+                    >
+                      <div className="border border-blue-500/50 bg-blue-500/10 rounded-t-md py-1 px-2">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="font-semibold" title={parent}>{parent}</span>
                           <button
-                            onClick={() => onRegroupColumn(header)}
+                            onClick={() => onRegroupColumn(children[0])}
                             className="px-2 py-0.5 text-xs font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-700 focus:ring-blue-500 transition-colors duration-200 whitespace-nowrap"
-                            title={`Regroup columns starting with "${parentKey}."`}
+                            title={`Regroup columns for "${parent}"`}
                           >
                             Regroup
                           </button>
-                        )}
-                        <button
-                          onClick={() => onToggleColumn(header)}
-                          className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 focus:outline-none"
-                          title={`Hide column "${header}"`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                        </div>
                       </div>
-                    </div>
-                  </th>
-                );
+                    </th>
+                  );
+                }
+              })}
+            </tr>
+            <tr>
+              {headerGroups.map((group) => {
+                if (typeof group === 'string') {
+                  return null; // Handled by rowspan
+                } else {
+                  const { children } = group;
+                  return children.map(header => {
+                    const childKey = header.substring(header.indexOf('.') + 1);
+                    return (
+                      <th
+                        key={header}
+                        scope="col"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider group align-bottom border-b border-gray-700"
+                      >
+                         <div className="flex items-center justify-between gap-2">
+                            <span className="truncate" title={header}>{childKey}</span>
+                            <button
+                              onClick={() => onToggleColumn(header)}
+                              className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 focus:outline-none"
+                              title={`Hide column "${header}"`}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                      </th>
+                    );
+                  });
+                }
               })}
             </tr>
           </thead>
