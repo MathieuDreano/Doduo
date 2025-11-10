@@ -10,18 +10,44 @@ interface DataTableProps {
   onToggleColumn: (column: string) => void;
 }
 
-const renderCellContent = (content: any): string => {
+const renderCellContent = (content: any): React.ReactNode => {
   if (content === undefined) {
-    return ''; // Use an empty string for undefined to signify absence of value
+    return <div className="px-4 py-3">&nbsp;</div>;
   }
   if (content === null) {
-    return 'null';
+    return <div className="px-4 py-3"><span className="text-gray-500 italic">null</span></div>;
   }
+
+  if (Array.isArray(content)) {
+    if (content.length === 0) {
+      return <div className="px-4 py-3"><span className="text-gray-500 italic">[ ]</span></div>;
+    }
+    return (
+      <table className="w-full">
+        <tbody className="divide-y divide-gray-700">
+          {content.map((item, index) => (
+            <tr key={index}>
+              <td className="p-0 align-top">
+                {renderCellContent(item)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
   if (typeof content === 'object') {
-    return JSON.stringify(content);
+    return (
+      <div className="px-4 py-3">
+        <pre className="text-xs bg-gray-900/50 p-2 rounded-md whitespace-pre-wrap font-mono">
+          <code>{JSON.stringify(content, null, 2)}</code>
+        </pre>
+      </div>
+    );
   }
-  return String(content);
-}
+  return <div className="px-4 py-3">{String(content)}</div>;
+};
 
 export const DataTable: React.FC<DataTableProps> = ({ data, onSplitColumn, onRegroupColumn, visibleColumns, onToggleColumn }) => {
   const [isManagerOpen, setIsManagerOpen] = useState(false);
@@ -83,9 +109,19 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onSplitColumn, onReg
           <thead className="bg-gray-700/50 sticky top-0 z-10">
             <tr>
               {visibleHeaders.map((header) => {
-                const isSplittable = !header.includes('.') && data.some(row => 
-                  typeof row[header] === 'object' && row[header] !== null && !Array.isArray(row[header])
-                );
+                const isSplittable = !header.includes('.') && data.some(row => {
+                  const value = row[header];
+                  if (value === null || typeof value !== 'object') {
+                    return false;
+                  }
+                  if (!Array.isArray(value) && Object.keys(value).length > 0) {
+                    return true; // Is a non-empty object
+                  }
+                  if (Array.isArray(value) && value.length > 0) {
+                    return true; // Is a non-empty array
+                  }
+                  return false;
+                });
 
                 const isRegroupable = header.includes('.');
                 const parentKey = isRegroupable ? header.split('.')[0] : '';
@@ -94,7 +130,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onSplitColumn, onReg
                   <th
                     key={header}
                     scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider group"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider group align-bottom"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate" title={header}>{header}</span>
@@ -139,11 +175,9 @@ export const DataTable: React.FC<DataTableProps> = ({ data, onSplitColumn, onReg
                 {visibleHeaders.map((header) => (
                   <td
                     key={`${rowIndex}-${header}`}
-                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-200"
+                    className="p-0 text-sm text-gray-200 align-top"
                   >
-                    <span className="max-w-xs block truncate" title={renderCellContent(row[header])}>
-                      {renderCellContent(row[header])}
-                    </span>
+                    {renderCellContent(row[header])}
                   </td>
                 ))}
               </tr>
