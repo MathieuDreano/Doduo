@@ -1,0 +1,5 @@
+{
+  "name": "JSON Spreadsheet Viewer",
+  "description": "An application to visualize JSON data in a spreadsheet-like table. Paste your JSON, and the app will automatically generate a clean, readable table from an array of objects.",
+  "requestFramePermissions": []
+}
