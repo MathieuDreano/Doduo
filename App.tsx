@@ -15,38 +15,64 @@ const App: React.FC = () => {
     2
   );
 
+  const initialData = JSON.parse(defaultJson);
   const [jsonString, setJsonString] = useState<string>(defaultJson);
-  const [data, setData] = useState<TableData[] | null>(JSON.parse(defaultJson));
+  const [data, setData] = useState<TableData[] | null>(initialData);
   const [error, setError] = useState<string | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(Object.keys(initialData[0] || {})));
+
+  const handleToggleColumn = useCallback((column: string) => {
+    setVisibleColumns(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(column)) {
+            // Prevent hiding the last column
+            if (newSet.size > 1) {
+                newSet.delete(column);
+            }
+        } else {
+            newSet.add(column);
+        }
+        return newSet;
+    });
+  }, []);
 
   const handleVisualize = useCallback(() => {
     if (!jsonString.trim()) {
       setData(null);
       setError(null);
+      setVisibleColumns(new Set());
       return;
     }
 
     try {
       const parsed = JSON.parse(jsonString);
       setError(null);
-
+      let newData: TableData[] | null = null;
+      
       if (Array.isArray(parsed)) {
         if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null) {
-          setData(parsed);
+          newData = parsed;
         } else if (parsed.length > 0) {
-           setData(parsed.map((value, index) => ({ index, value })));
+           newData = parsed.map((value, index) => ({ index, value }));
         } else {
-          setData([]);
+          newData = [];
         }
       } else if (typeof parsed === 'object' && parsed !== null) {
-        setData([parsed]);
+        newData = [parsed];
       } else {
         setError('Unsupported JSON structure. Please provide an array of objects or a single object.');
         setData(null);
+        setVisibleColumns(new Set());
+        return;
       }
+      
+      setData(newData);
+      setVisibleColumns(new Set(Object.keys(newData[0] || {})));
+
     } catch (e) {
       setError('Invalid JSON format. Please check your syntax.');
       setData(null);
+      setVisibleColumns(new Set());
     }
   }, [jsonString]);
 
@@ -89,6 +115,7 @@ const App: React.FC = () => {
     });
     
     setData(newData);
+    setVisibleColumns(new Set(Object.keys(newData[0] || {})));
   }, [data]);
 
 
@@ -118,6 +145,7 @@ const App: React.FC = () => {
     });
 
     setData(newData);
+    setVisibleColumns(new Set(Object.keys(newData[0] || {})));
   }, [data]);
 
 
@@ -138,7 +166,13 @@ const App: React.FC = () => {
           />
         </div>
         <div className="lg:w-2/3 flex flex-col">
-          <DataTable data={data} onSplitColumn={handleSplitColumn} onRegroupColumn={handleRegroupColumn} />
+          <DataTable 
+            data={data} 
+            onSplitColumn={handleSplitColumn} 
+            onRegroupColumn={handleRegroupColumn}
+            visibleColumns={visibleColumns}
+            onToggleColumn={handleToggleColumn} 
+          />
         </div>
       </main>
 
